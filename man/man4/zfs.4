@@ -1971,13 +1971,6 @@ and may need to load new metaslabs to satisfy these allocations.
 .It Sy zfs_sync_pass_rewrite Ns = Ns Sy 2 Pq uint
 Rewrite new block pointers starting in this pass.
 .
-.It Sy zfs_sync_taskq_batch_pct Ns = Ns Sy 75 Ns % Pq int
-This controls the number of threads used by
-.Sy dp_sync_taskq .
-The default value of
-.Sy 75%
-will create a maximum of one thread per CPU.
-.
 .It Sy zfs_trim_extent_bytes_max Ns = Ns Sy 134217728 Ns B Po 128 MiB Pc Pq uint
 Maximum size of TRIM command.
 Larger ranges will be split into chunks no larger than this value before

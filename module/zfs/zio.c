@@ -1990,7 +1990,7 @@ zio_taskq_dispatch(zio_t *zio, zio_taskq_type_t q, boolean_t cutinline)
 	 */
 	ASSERT(taskq_empty_ent(&zio->io_tqent));
 	spa_taskq_dispatch_ent(spa, t, q, zio_execute, zio, flags,
-	    &zio->io_tqent);
+	    &zio->io_tqent, zio);
 }
 
 static boolean_t
@@ -2015,8 +2015,12 @@ zio_taskq_member(zio_t *zio, zio_taskq_type_t q)
 static zio_t *
 zio_issue_async(zio_t *zio)
 {
+	/* ref: ZIO_STAGE_ISSUE_ASYNC for other types */
+	if ((zio->io_type == ZIO_TYPE_WRITE) &&
+	    !(zio->io_flags & ZIO_FLAG_GANG_CHILD)) {
+		spa_select_allocator(zio);
+	}
 	zio_taskq_dispatch(zio, ZIO_TASKQ_ISSUE, B_FALSE);
-
 	return (NULL);
 }
 
@@ -2330,6 +2334,7 @@ zio_wait(zio_t *zio)
 	ASSERT0(zio->io_queued_timestamp);
 	zio->io_queued_timestamp = gethrtime();
 
+	zio->io_thread = curthread;
 	__zio_execute(zio);
 
 	mutex_enter(&zio->io_lock);
@@ -2382,6 +2387,8 @@ zio_nowait(zio_t *zio)
 
 	ASSERT0(zio->io_queued_timestamp);
 	zio->io_queued_timestamp = gethrtime();
+
+	zio->io_thread = curthread;
 	__zio_execute(zio);
 }
 
@@ -3556,17 +3563,7 @@ zio_dva_throttle(zio_t *zio)
 	ASSERT3U(zio->io_queued_timestamp, >, 0);
 	ASSERT(zio->io_stage == ZIO_STAGE_DVA_THROTTLE);
 
-	zbookmark_phys_t *bm = &zio->io_bookmark;
-	/*
-	 * We want to try to use as many allocators as possible to help improve
-	 * performance, but we also want logically adjacent IOs to be physically
-	 * adjacent to improve sequential read performance. We chunk each object
-	 * into 2^20 block regions, and then hash based on the objset, object,
-	 * level, and region to accomplish both of these goals.
-	 */
-	int allocator = (uint_t)cityhash4(bm->zb_objset, bm->zb_object,
-	    bm->zb_level, bm->zb_blkid >> 20) % spa->spa_alloc_count;
-	zio->io_allocator = allocator;
+	int allocator = zio->io_allocator;
 	zio->io_metaslab_class = mc;
 	mutex_enter(&spa->spa_allocs[allocator].spaa_lock);
 	avl_add(&spa->spa_allocs[allocator].spaa_tree, zio);
@@ -4905,7 +4902,7 @@ zio_done(zio_t *zio)
 			ASSERT(taskq_empty_ent(&zio->io_tqent));
 			spa_taskq_dispatch_ent(zio->io_spa,
 			    ZIO_TYPE_CLAIM, ZIO_TASKQ_ISSUE,
-			    zio_reexecute, zio, 0, &zio->io_tqent);
+			    zio_reexecute, zio, 0, &zio->io_tqent, NULL);
 		}
 		return (NULL);
 	}
