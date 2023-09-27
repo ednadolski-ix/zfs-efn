@@ -1038,7 +1038,7 @@ spa_taskqs_init(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
 		 * Create one wr_iss taskq for every 'zio_taskq_wr_iss_ncpus',
 		 * not to exceed the number of spa allocators.
 		 */
-		count = MAX(1, boot_ncpus / zio_taskq_wr_iss_ncpus);
+		count = MAX(1, boot_ncpus / MAX(1, zio_taskq_wr_iss_ncpus));
 		count = MAX(count, (zio_taskq_batch_pct + 99) / 100);
 		count = MIN(count, spa->spa_alloc_count);
 
@@ -9632,7 +9632,7 @@ taskq_t *
 spa_sync_tq_create(spa_t *spa, const char *name)
 {
 	ASSERT(spa->spa_sync_tq == NULL);
-	ASSERT(spa->spa_alloc_count <= boot_ncpus);
+	ASSERT3S(spa->spa_alloc_count, <=, boot_ncpus);
 
 	/*
 	 * - do not allow more allocators than cpus.
@@ -9647,6 +9647,7 @@ spa_sync_tq_create(spa_t *spa, const char *name)
 
 	spa->spa_sync_tq = taskq_create(name, nthreads, minclsyspri, nthreads,
 	    INT_MAX, TASKQ_PREPOPULATE);
+	VERIFY(spa->spa_sync_tq != NULL);
 
 	/* spawn all syncthreads */
 	for (int i = 0; i < nthreads; i++) {

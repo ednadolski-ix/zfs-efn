@@ -490,6 +490,14 @@ If we have less than this amount of free space,
 most ZPL operations (e.g. write, create) will return
 .Sy ENOSPC .
 .
+.It Sy spa_num_allocators Ns = Ns Sy 4 Pq int
+Determines the number of block alloctators to use per spa instance.
+Capped by the number of actual CPUs in the system.
+.Pp
+This should be a multiple of the number of CPUs.
+Note that setting this value too high could result in performance
+degredation and/or excess fragmentation.
+.
 .It Sy spa_upgrade_errlog_limit Ns = Ns Sy 0 Pq uint
 Limits the number of on-disk error log entries that will be converted to the
 new format when enabling the
@@ -2256,6 +2264,14 @@ while higher reduces lock contention.
 If
 .Sy 0 ,
 generate a system-dependent value close to 6 threads per taskq.
+.
+.It Sy zio_taskq_wr_iss_ncpus Ns = Ns Sy 32 Pq uint
+Determines the number of CPUs to run write issue taskqs.
+.Pp
+While an optimal value will be system dependent, a suggested value
+is the number of actual CPUs in the system, divided by the
+.Sy spa_num_allocators
+value.
 .
 .It Sy zvol_inhibit_dev Ns = Ns Sy 0 Ns | Ns 1 Pq uint
 Do not create zvol device nodes.
